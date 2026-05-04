@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>free表情助手</title>
+<style>
+  :root {
+    --primary: #07C160;
+    --primary-dark: #06AD56;
+    --bg: #EDEDED;
+    --chat-bg: #F7F7F7;
+    --bubble-user: #95EC69;
+    --bubble-sys: #FFFFFF;
+    --text: #191919;
+    --text-secondary: #888888;
+    --border: #D9D9D9;
+    --danger: #FA5151;
+    --shadow: rgba(0,0,0,0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ===== Header ===== */
+  .header {
+    background: #EDEDED;
+    border-bottom: 0.5px solid var(--border);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+  }
+  .header-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .header-title .emoji-icon {
+    font-size: 22px;
+  }
+  .header-actions {
+    display: flex;
+    gap: 12px;
+  }
+  .header-btn {
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: 14px;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+  .header-btn:active { background: rgba(7,193,96,0.1); }
+
+  /* ===== Chat Container ===== */
+  .chat-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px 16px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ===== System Message ===== */
+  .sys-msg {
+    text-align: center;
+    margin: 8px 0;
+  }
+  .sys-msg span {
+    background: #CECECE;
+    color: #fff;
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+
+  /* ===== Message Bubbles ===== */
+  .msg-row {
+    display: flex;
+    margin-bottom: 12px;
+    align-items: flex-start;
+    animation: fadeInUp 0.3s ease;
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .msg-row.user { flex-direction: row-reverse; }
+
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+  }
+  .avatar.bot-avatar { background: var(--primary); color: #fff; }
+  .avatar.user-avatar { background: #FFC300; color: #fff; }
+
+  .bubble {
+    max-width: 65%;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 15px;
+    line-height: 1.5;
+    word-break: break-word;
+    position: relative;
+  }
+  .msg-row:not(.user) .bubble {
+    background: var(--bubble-sys);
+    margin-left: 8px;
+    box-shadow: 0 1px 2px var(--shadow);
+  }
+  .msg-row:not(.user) .bubble::before {
+    content: '';
+    position: absolute;
+    left: -6px;
+    top: 12px;
+    width: 0; height: 0;
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+    border-right: 6px solid var(--bubble-sys);
+  }
+  .msg-row.user .bubble {
+    background: var(--bubble-user);
+    margin-right: 8px;
+    box-shadow: 0 1px 2px var(--shadow);
+  }
+  .msg-row.user .bubble::after {
+    content: '';
+    position: absolute;
+    right: -6px;
+    top: 12px;
+    width: 0; height: 0;
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+    border-left: 6px solid var(--bubble-user);
+  }
+
+  /* Sticker in bubble */
+  .sticker-img {
+    max-width: 120px;
+    max-height: 120px;
+    border-radius: 4px;
+    display: block;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  .sticker-img:active { transform: scale(0.95); }
+
+  /* ===== Welcome Card ===== */
+  .welcome-card {
+    background: var(--bubble-sys);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 8px 0;
+    box-shadow: 0 1px 3px var(--shadow);
+  }
+  .welcome-card h3 {
+    font-size: 16px;
+    margin-bottom: 10px;
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .welcome-card p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 6px;
+  }
+  .welcome-card .steps {
+    margin: 10px 0;
+    padding-left: 0;
+    list-style: none;
+    counter-reset: step;
+  }
+  .welcome-card .steps li {
+    counter-increment: step;
+    font-size: 13px;
+    color: var(--text);
+    padding: 4px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .welcome-card .steps li::before {
+    content: counter(step);
+    background: var(--primary);
+    color: #fff;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  /* ===== Action Buttons Row ===== */
+  .action-buttons {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0;
+    flex-wrap: wrap;
+  }
+  .action-btn {
+    background: #F0F0F0;
+    border: 1px solid var(--border);
+    color: var(--primary);
+    font-size: 13px;
+    padding: 8px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+  .action-btn:active {
+    background: rgba(7,193,96,0.1);
+    border-color: var(--primary);
+  }
+  .action-btn.primary-action {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+  }
+  .action-btn.primary-action:active { background: var(--primary-dark); }
+
+  /* ===== Input Bar ===== */
+  .input-bar {
+    background: #F7F7F7;
+    border-top: 0.5px solid var(--border);
+    padding: 8px 12px;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .input-tools {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .tool-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    position: relative;
+  }
+  .tool-btn:active { background: rgba(0,0,0,0.05); }
+  .tool-btn svg { width: 24px; height: 24px; }
+  .tool-btn .badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: var(--danger);
+    color: #fff;
+    font-size: 10px;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+  }
+
+  .chat-input {
+    flex: 1;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 15px;
+    outline: none;
+    resize: none;
+    min-height: 36px;
+    max-height: 80px;
+    line-height: 1.4;
+    color: var(--text);
+    transition: border-color 0.2s;
+  }
+  .chat-input:focus { border-color: var(--primary); }
+  .chat-input::placeholder { color: #C0C0C0; }
+
+  .send-btn {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    font-weight: 500;
+  }
+  .send-btn:active { background: var(--primary-dark); }
+  .send-btn:disabled { background: #C0C0C0; cursor: not-allowed; }
+
+  /* ===== Export Panel (bottom sheet) ===== */
+  .export-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 100;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s;
+  }
+  .export-overlay.active { opacity: 1; visibility: visible; }
+
+  .export-panel {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: #fff;
+    border-radius: 12px 12px 0 0;
+    padding: 20px 16px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    z-index: 101;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+  .export-overlay.active .export-panel { transform: translateY(0); }
+
+  .export-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .export-panel-title {
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .export-close {
+    width: 28px; height: 28px;
+    background: #F0F0F0;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: var(--text-secondary);
+  }
+
+  /* Sticker Grid in Export Panel */
+  .sticker-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .sticker-slot {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    background: #F5F5F5;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .sticker-slot.selected { border-color: var(--primary); }
+  .sticker-slot.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 4px; right: 4px;
+    background: var(--primary);
+    color: #fff;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .sticker-slot img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+  .sticker-slot .empty-slot {
+    width: 100%; height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #D0D0D0;
+    font-size: 28px;
+  }
+  .sticker-slot .format-tag {
+    position: absolute;
+    bottom: 4px; left: 4px;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    text-transform: uppercase;
+  }
+
+  /* Select All */
+  .select-all-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .select-all-label {
+    font-size: 14px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .select-all-label input[type="checkbox"] {
+    width: 18px; height: 18px;
+    accent-color: var(--primary);
+  }
+  .sticker-count {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  /* Progress */
+  .progress-section {
+    margin: 16px 0;
+    display: none;
+  }
+  .progress-section.active { display: block; }
+
+  .progress-bar-container {
+    background: #F0F0F0;
+    border-radius: 10px;
+    height: 20px;
+    overflow: hidden;
+    position: relative;
+    margin-bottom: 8px;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), #09D668);
+    border-radius: 10px;
+    width: 0%;
+    transition: width 0.3s ease;
+    position: relative;
+  }
+  .progress-bar-fill::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255,255,255,0.3) 50%,
+      transparent 100%
+    );
+    animation: shimmer 1.5s infinite;
+  }
+  @keyframes shimmer {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+  }
+  .progress-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: center;
+  }
+  .progress-detail {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-top: 4px;
+  }
+
+  /* Export Buttons */
+  .export-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .export-btn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .export-btn:active { transform: scale(0.98); }
+  .export-btn.btn-export {
+    background: var(--primary);
+    color: #fff;
+  }
+  .export-btn.btn-export:active { background: var(--primary-dark); }
+  .export-btn.btn-export:disabled { background: #C0C0C0; cursor: not-allowed; }
+  .export-btn.btn-cancel {
+    background: #F0F0F0;
+    color: var(--text);
+  }
+
+  /* ===== Recognition Toast ===== */
+  .toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    background: rgba(0,0,0,0.75);
+    color: #fff;
+    padding: 16px 24px;
+    border-radius: 12px;
+    font-size: 14px;
+    z-index: 200;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    text-align: center;
+    min-width: 140px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .toast.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  .toast .toast-icon { font-size: 36px; margin-bottom: 8px; }
+  .toast .toast-text { font-size: 14px; }
+
+  /* ===== Sticker Preview Modal ===== */
+  .preview-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.9);
+    z-index: 150;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s;
+  }
+  .preview-overlay.active { opacity: 1; visibility: visible; }
+  .preview-overlay img {
+    max-width: 80%;
+    max-height: 80%;
+    border-radius: 8px;
+  }
+  .preview-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: #fff;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .preview-save {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    padding: 12px 32px;
+    border-radius: 24px;
+    font-size: 15px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  /* ===== Empty State ===== */
+  .empty-state {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-secondary);
+  }
+  .empty-state .empty-icon { font-size: 40px; margin-bottom: 8px; }
+
+  /* ===== Hidden file input ===== */
+  #fileInput { display: none; }
+
+  /* ===== Scrollbar ===== */
+  .chat-container::-webkit-scrollbar { width: 0; }
+
+  /* ===== Responsive ===== */
+  @media (min-width: 500px) {
+    body { max-width: 420px; margin: 0 auto; box-shadow: 0 0 20px var(--shadow); }
+  }
+
+  /* ===== Typing indicator ===== */
+  .typing-dots {
+    display: flex;
+    gap: 4px;
+    padding: 4px 0;
+  }
+  .typing-dots span {
+    width: 6px; height: 6px;
+    background: #C0C0C0;
+    border-radius: 50%;
+    animation: typing 1.4s infinite;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typing {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-6px); opacity: 1; }
+  }
+
+  /* ===== Format badge colors ===== */
+  .format-gif { background: #FF6B6B; }
+  .format-webp { background: #845EF7; }
+  .format-png { background: #20C997; }
+  .format-jpg { background: #339AF0; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-title">
+    <span class="emoji-icon">😀</span>
+    free表情助手
+  </div>
+  <div class="header-actions">
+    <button class="header-btn" onclick="showExportPanel()">📦 导出</button>
+  </div>
+</div>
+
+<!-- Chat Container -->
+<div class="chat-container" id="chatContainer">
+  <!-- System time -->
+  <div class="sys-msg"><span>今天 09:30</span></div>
+
+  <!-- Welcome message from bot -->
+  <div class="msg-row" id="welcomeMsg">
+    <div class="avatar bot-avatar">🤖</div>
+    <div class="bubble">
+      <div class="welcome-card">
+        <h3>👋 欢迎使用 free表情助手</h3>
+        <p>我可以帮你管理和导出微信收藏的表情包！</p>
+        <ol class="steps">
+          <li>点击下方 <strong>「+」</strong> 按钮选择表情</li>
+          <li>表情会显示在聊天中并自动识别</li>
+          <li>点击右上角 <strong>「📦 导出」</strong> 保存表情</li>
+        </ol>
+      </div>
+      <div class="action-buttons">
+        <button class="action-btn primary-action" onclick="pickImage()">📸 选择表情</button>
+        <button class="action-btn" onclick="showExportPanel()">📦 导出管理</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Input Bar -->
+<div class="input-bar">
+  <div class="input-tools">
+    <button class="tool-btn" onclick="pickImage()" title="选择表情">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#07C160" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+        <line x1="9" y1="9" x2="9.01" y2="9"/>
+        <line x1="15" y1="9" x2="15.01" y2="9"/>
+      </svg>
+      <span class="badge" id="stickerBadge" style="display:none">0</span>
+    </button>
+    <button class="tool-btn" onclick="document.getElementById('fileInput').click()" title="上传文件">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+      </svg>
+    </button>
+  </div>
+  <textarea class="chat-input" id="chatInput" placeholder="输入消息或粘贴表情..." rows="1"></textarea>
+  <button class="send-btn" id="sendBtn" onclick="handleSend()">发送</button>
+</div>
+
+<!-- Hidden file input -->
+<input type="file" id="fileInput" accept="image/*" multiple onchange="handleFileSelect(event)">
+
+<!-- Export Overlay -->
+<div class="export-overlay" id="exportOverlay" onclick="closeExportPanel(event)">
+  <div class="export-panel" onclick="event.stopPropagation()">
+    <div class="export-panel-header">
+      <span class="export-panel-title">📦 导出表情</span>
+      <button class="export-close" onclick="hideExportPanel()">✕</button>
+    </div>
+
+    <div class="select-all-row">
+      <label class="select-all-label">
+        <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)">
+        全选
+      </label>
+      <span class="sticker-count" id="stickerCount">已选 0 / 0 张</span>
+    </div>
+
+    <div class="sticker-grid" id="stickerGrid">
+      <div class="empty-state" style="grid-column: 1/-1;">
+        <div class="empty-icon">📭</div>
+        <p>还没有表情，先去聊天中发送表情吧</p>
+      </div>
+    </div>
+
+    <!-- Progress Section -->
+    <div class="progress-section" id="progressSection">
+      <div class="progress-bar-container">
+        <div class="progress-bar-fill" id="progressBarFill"></div>
+      </div>
+      <div class="progress-text" id="progressText">准备导出...</div>
+      <div class="progress-detail" id="progressDetail"></div>
+    </div>
+
+    <div class="export-actions">
+      <button class="export-btn btn-cancel" onclick="hideExportPanel()">取消</button>
+      <button class="export-btn btn-export" id="exportBtn" onclick="exportStickers()">
+        📥 导出选中
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Preview Overlay -->
+<div class="preview-overlay" id="previewOverlay" onclick="closePreview()">
+  <button class="preview-close" onclick="closePreview()">✕</button>
+  <img id="previewImg" src="" alt="preview">
+  <button class="preview-save" onclick="savePreview()">💾 保存此表情</button>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <div class="toast-icon" id="toastIcon">✅</div>
+  <div class="toast-text" id="toastText">识别成功</div>
+</div>
+
+<!-- WeChat JS-SDK -->
+<script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>
+
+<script>
+// ==========================================
+// State
+// ==========================================
+const state = {
+  stickers: [],       // { id, src, blob, format, isAnimated, name, selected }
+  nextId: 1,
+  isExporting: false,
+};
+
+// ==========================================
+// WeChat JS-SDK Configuration
+// ==========================================
+function initWxSDK() {
+  // ===== 重要：替换为你的公众号配置 =====
+  // 这些值需要从你的后端接口获取
+  // 后端需要调用微信接口: https://api.weixin.qq.com/cgi-bin/ticket/getticket
+  // 然后用 jsapi_ticket + url + noncestr + timestamp 计算签名
+
+  /*
+  fetch('/api/wx-config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: location.href.split('#')[0] })
+  })
+  .then(res => res.json())
+  .then(config => {
+    wx.config({
+      debug: false,
+      appId: config.appId,
+      timestamp: config.timestamp,
+      nonceStr: config.nonceStr,
+      signature: config.signature,
+      jsApiList: [
+        'chooseImage',
+        'getLocalImgData',
+        'previewImage',
+        'downloadImage',
+      ]
+    });
+
+    wx.ready(() => {
+      console.log('微信JS-SDK 初始化成功');
+    });
+
+    wx.error((err) => {
+      console.error('微信JS-SDK 初始化失败:', err);
+    });
+  });
+  */
+  console.log('[free表情助手] WeChat JS-SDK 占位 - 请配置后端签名接口');
+}
+
+// ==========================================
+// Image Picker
+// ==========================================
+function pickImage() {
+  // 方式1: 微信环境 - 使用 JS-SDK
+  if (typeof wx !== 'undefined' && navigator.userAgent.indexOf('MicroMessenger') > -1) {
+    wx.chooseImage({
+      count: 9,
+      sizeType: ['original'],
+      sourceType: ['album'],
+      success: function(res) {
+        res.localIds.forEach(localId => {
+          wx.getLocalImgData({
+            localId: localId,
+            success: function(imgRes) {
+              let base64 = imgRes.localData;
+              if (!base64.startsWith('data:')) {
+                base64 = 'data:image/jpeg;base64,' + base64;
+              }
+              processImage(base64, 'wx-sticker');
+            }
+          });
+        });
+      },
+      fail: function(err) {
+        console.log('选择图片失败，回退到文件选择');
+        document.getElementById('fileInput').click();
+      }
+    });
+  } else {
+    // 方式2: 非微信环境 - 使用文件选择
+    document.getElementById('fileInput').click();
+  }
+}
+
+function handleFileSelect(event) {
+  const files = event.target.files;
+  if (!files.length) return;
+
+  Array.from(files).forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      processImage(e.target.result, file.name);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  event.target.value = '';
+}
+
+// ==========================================
+// Paste Support
+// ==========================================
+document.addEventListener('paste', (e) => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+
+  for (let item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault();
+      const blob = item.getAsFile();
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        processImage(ev.target.result, 'pasted-sticker');
+      };
+      reader.readAsDataURL(blob);
+      break;
+    }
+  }
+});
+
+// ==========================================
+// Process Image - Detect format, add to state
+// ==========================================
+function processImage(dataUrl, name) {
+  const format = detectFormat(dataUrl);
+  const isAnimated = format === 'gif';
+
+  const sticker = {
+    id: state.nextId++,
+    src: dataUrl,
+    format: format,
+    isAnimated: isAnimated,
+    name: `${name}_${Date.now()}.${format}`,
+    selected: false,
+  };
+
+  state.stickers.push(sticker);
+
+  // Add user message to chat
+  addStickerMessage(sticker);
+
+  // Show recognition toast
+  showRecognitionToast(sticker);
+
+  // Update badge
+  updateBadge();
+
+  // Scroll to bottom
+  scrollToBottom();
+}
+
+function detectFormat(dataUrl) {
+  if (dataUrl.startsWith('data:image/gif')) return 'gif';
+  if (dataUrl.startsWith('data:image/webp')) return 'webp';
+  if (dataUrl.startsWith('data:image/png')) return 'png';
+  if (dataUrl.startsWith('data:image/svg')) return 'svg';
+  return 'jpg';
+}
+
+// ==========================================
+// Chat Messages
+// ==========================================
+function addStickerMessage(sticker) {
+  const container = document.getElementById('chatContainer');
+
+  // User message with sticker
+  const msgRow = document.createElement('div');
+  msgRow.className = 'msg-row user';
+  msgRow.innerHTML = `
+    <div class="avatar user-avatar">👤</div>
+    <div class="bubble">
+      <img class="sticker-img" src="${sticker.src}" alt="sticker"
+           onclick="previewSticker(${sticker.id})">
+      <div style="font-size:11px;color:#666;margin-top:4px;">
+        ${sticker.isAnimated ? '🎬 动图' : '🖼️ 静态'} · ${sticker.format.toUpperCase()}
+      </div>
+    </div>
+  `;
+  container.appendChild(msgRow);
+
+  // Bot response after a short delay
+  setTimeout(() => {
+    const botRow = document.createElement('div');
+    botRow.className = 'msg-row';
+
+    const statusText = sticker.isAnimated
+      ? '检测到动图表情！已保存，可随时导出为 GIF 文件。'
+      : '已识别并保存此表情。你可以在「导出管理」中批量导出。';
+
+    botRow.innerHTML = `
+      <div class="avatar bot-avatar">🤖</div>
+      <div class="bubble">
+        <div>✅ 识别成功</div>
+        <div style="font-size:13px;color:#666;margin-top:4px;">${statusText}</div>
+        <div style="margin-top:8px;">
+          <button class="action-btn" onclick="showExportPanel()" style="font-size:12px;padding:6px 10px;">
+            📦 查看全部 (${state.stickers.length} 张)
+          </button>
+        </div>
+      </div>
+    `;
+    container.appendChild(botRow);
+    scrollToBottom();
+  }, 500);
+}
+
+function addTextMessage(text, isUser = false) {
+  const container = document.getElementById('chatContainer');
+  const msgRow = document.createElement('div');
+  msgRow.className = `msg-row ${isUser ? 'user' : ''}`;
+  msgRow.innerHTML = `
+    <div class="avatar ${isUser ? 'user-avatar' : 'bot-avatar'}">${isUser ? '👤' : '🤖'}</div>
+    <div class="bubble">${text}</div>
+  `;
+  container.appendChild(msgRow);
+  scrollToBottom();
+}
+
+function handleSend() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+
+  addTextMessage(text, true);
+  input.value = '';
+  input.style.height = 'auto';
+
+  // Bot auto-reply
+  setTimeout(() => {
+    const replies = [
+      '收到！你可以点击下方「+」按钮选择表情发给我。',
+      '好的～选择你要导出的表情发过来吧！',
+      '没问题！我会帮你识别并保存的。',
+      '试试从微信收藏中复制表情，然后粘贴到这里～',
+    ];
+    const reply = replies[Math.floor(Math.random() * replies.length)];
+    addTextMessage(reply);
+  }, 800);
+}
+
+// Auto-resize textarea
+document.getElementById('chatInput').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 80) + 'px';
+});
+
+// Enter to send
+document.getElementById('chatInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    handleSend();
+  }
+});
+
+// ==========================================
+// Recognition Toast
+// ==========================================
+function showRecognitionToast(sticker) {
+  const toast = document.getElementById('toast');
+  const icon = document.getElementById('toastIcon');
+  const text = document.getElementById('toastText');
+
+  if (sticker.isAnimated) {
+    icon.textContent = '🎬';
+    text.textContent = `动图识别成功 · ${sticker.format.toUpperCase()}`;
+  } else {
+    icon.textContent = '✅';
+    text.textContent = `识别成功 · ${sticker.format.toUpperCase()}`;
+  }
+
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 1800);
+}
+
+// ==========================================
+// Badge
+// ==========================================
+function updateBadge() {
+  const badge = document.getElementById('stickerBadge');
+  const count = state.stickers.length;
+  if (count > 0) {
+    badge.style.display = 'flex';
+    badge.textContent = count > 99 ? '99+' : count;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ==========================================
+// Export Panel
+// ==========================================
+function showExportPanel() {
+  const overlay = document.getElementById('exportOverlay');
+  overlay.classList.add('active');
+  renderStickerGrid();
+  updateSelectCount();
+}
+
+function hideExportPanel() {
+  const overlay = document.getElementById('exportOverlay');
+  overlay.classList.remove('active');
+  // Reset progress
+  document.getElementById('progressSection').classList.remove('active');
+  document.getElementById('progressBarFill').style.width = '0%';
+}
+
+function closeExportPanel(event) {
+  if (event.target === event.currentTarget) {
+    hideExportPanel();
+  }
+}
+
+function renderStickerGrid() {
+  const grid = document.getElementById('stickerGrid');
+
+  if (state.stickers.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column: 1/-1;">
+        <div class="empty-icon">📭</div>
+        <p>还没有表情，先去聊天中发送表情吧</p>
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = state.stickers.map(s => `
+    <div class="sticker-slot ${s.selected ? 'selected' : ''}"
+         onclick="toggleStickerSelect(${s.id})">
+      <img src="${s.src}" alt="sticker" loading="lazy">
+      <span class="sticker-label format-tag format-${s.format}">${s.format}</span>
+    </div>
+  `).join('');
+}
+
+function toggleStickerSelect(id) {
+  const sticker = state.stickers.find(s => s.id === id);
+  if (sticker) {
+    sticker.selected = !sticker.selected;
+    renderStickerGrid();
+    updateSelectCount();
+  }
+}
+
+function toggleSelectAll(checked) {
+  state.stickers.forEach(s => s.selected = checked);
+  renderStickerGrid();
+  updateSelectCount();
+}
+
+function updateSelectCount() {
+  const total = state.stickers.length;
+  const selected = state.stickers.filter(s => s.selected).length;
+  document.getElementById('stickerCount').textContent = `已选 ${selected} / ${total} 张`;
+  document.getElementById('selectAll').checked = selected === total && total > 0;
+}
+
+// ==========================================
+// Export Logic
+// ==========================================
+async function exportStickers() {
+  const selected = state.stickers.filter(s => s.selected);
+  if (selected.length === 0) {
+    showToast('⚠️', '请先选择要导出的表情');
+    return;
+  }
+
+  if (state.isExporting) return;
+  state.isExporting = true;
+
+  const progressSection = document.getElementById('progressSection');
+  const progressBarFill = document.getElementById('progressBarFill');
+  const progressText = document.getElementById('progressText');
+  const progressDetail = document.getElementById('progressDetail');
+  const exportBtn = document.getElementById('exportBtn');
+
+  progressSection.classList.add('active');
+  exportBtn.disabled = true;
+  exportBtn.textContent = '⏳ 导出中...';
+
+  const total = selected.length;
+  let completed = 0;
+
+  for (const sticker of selected) {
+    progressText.textContent = `正在导出第 ${completed + 1} / ${total} 张...`;
+    progressDetail.textContent = `${sticker.name} (${sticker.format.toUpperCase()}${sticker.isAnimated ? ' 动图' : ''})`;
+
+    try {
+      await exportSingleSticker(sticker, completed, total);
+    } catch (err) {
+      console.error('导出失败:', sticker.name, err);
+    }
+
+    completed++;
+    const percent = Math.round((completed / total) * 100);
+    progressBarFill.style.width = percent + '%';
+  }
+
+  progressText.textContent = `✅ 导出完成！共 ${total} 张表情`;
+  progressDetail.textContent = '';
+  progressBarFill.style.width = '100%';
+
+  exportBtn.disabled = false;
+  exportBtn.textContent = '📥 导出选中';
+  state.isExporting = false;
+
+  showToast('🎉', `成功导出 ${total} 张表情`);
+}
+
+async function exportSingleSticker(sticker, index, total) {
+  return new Promise((resolve) => {
+    // Convert dataURL to blob
+    const byteString = atob(sticker.src.split(',')[1]);
+    const mimeType = sticker.src.split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    const blob = new Blob([ab], { type: mimeType });
+
+    // Create download link
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = sticker.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    // Small delay to prevent browser blocking multiple downloads
+    setTimeout(resolve, 300);
+  });
+}
+
+// ==========================================
+// Preview
+// ==========================================
+function previewSticker(id) {
+  const sticker = state.stickers.find(s => s.id === id);
+  if (!sticker) return;
+
+  const overlay = document.getElementById('previewOverlay');
+  const img = document.getElementById('previewImg');
+  img.src = sticker.src;
+  overlay.dataset.stickerId = id;
+  overlay.classList.add('active');
+}
+
+function closePreview() {
+  document.getElementById('previewOverlay').classList.remove('active');
+}
+
+function savePreview() {
+  const id = parseInt(document.getElementById('previewOverlay').dataset.stickerId);
+  const sticker = state.stickers.find(s => s.id === id);
+  if (!sticker) return;
+
+  const byteString = atob(sticker.src.split(',')[1]);
+  const mimeType = sticker.src.split(':')[1].split(';')[0];
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i);
+  }
+  const blob = new Blob([ab], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = sticker.name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  showToast('💾', '已保存');
+  closePreview();
+}
+
+// ==========================================
+// Toast Utility
+// ==========================================
+function showToast(icon, text) {
+  const toast = document.getElementById('toast');
+  document.getElementById('toastIcon').textContent = icon;
+  document.getElementById('toastText').textContent = text;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 1800);
+}
+
+// ==========================================
+// Scroll Utility
+// ==========================================
+function scrollToBottom() {
+  const container = document.getElementById('chatContainer');
+  requestAnimationFrame(() => {
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+  });
+}
+
+// ==========================================
+// Init
+// ==========================================
+window.addEventListener('DOMContentLoaded', () => {
+  initWxSDK();
+  scrollToBottom();
+});
+</script>
+</body>
+</html>
