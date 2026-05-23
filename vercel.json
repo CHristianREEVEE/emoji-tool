@@ -1,7 +1,0 @@
-{
-  "functions": {
-    "api/wx.py": {
-      "maxDuration": 30
-    }
-  }
-}
