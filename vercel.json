@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/wx.py": {
+      "runtime": "python3.9"
+    }
+  }
+}
