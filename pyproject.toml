@@ -1,2 +1,2 @@
 [tool.vercel]
-entrypoint = "api/wx:app"
+entrypoint = "app:app"
