@@ -1,11 +1,12 @@
 import os, hashlib, time, base64, requests
 import xml.etree.ElementTree as ET
-from urllib.parse import parse_qs, urlparse
-from http.server import BaseHTTPRequestHandler
+from flask import Flask, request, Response
 
-TOKEN    = os.environ.get('WX_TOKEN', '')
-APPID    = os.environ.get('WX_APPID', '')
-SECRET   = os.environ.get('WX_APPSECRET', '')
+app = Flask(__name__)
+
+TOKEN     = os.environ.get('WX_TOKEN', '')
+APPID     = os.environ.get('WX_APPID', '')
+SECRET    = os.environ.get('WX_APPSECRET', '')
 IMGBB_KEY = os.environ.get('IMGBB_API_KEY', '')
 
 def check_sig(sig, ts, nonce):
@@ -49,75 +50,52 @@ def xml_reply(to, frm, content):
 <Content><![CDATA[{content}]]></Content>
 </xml>'''
 
-class handler(BaseHTTPRequestHandler):
+@app.route('/api/wx', methods=['GET'])
+def wx_verify():
+    sig   = request.args.get('signature', '')
+    ts    = request.args.get('timestamp', '')
+    nonce = request.args.get('nonce', '')
+    echo  = request.args.get('echostr', '')
+    if check_sig(sig, ts, nonce):
+        return echo
+    return 'Forbidden', 403
 
-    def do_GET(self):
-        qs    = parse_qs(urlparse(self.path).query)
-        sig   = qs.get('signature', [''])[0]
-        ts    = qs.get('timestamp', [''])[0]
-        nonce = qs.get('nonce',     [''])[0]
-        echo  = qs.get('echostr',   [''])[0]
+@app.route('/api/wx', methods=['POST'])
+def wx_message():
+    try:
+        root  = ET.fromstring(request.data)
+        to    = root.findtext('ToUserName')
+        frm   = root.findtext('FromUserName')
+        mtype = root.findtext('MsgType')
 
-        if check_sig(sig, ts, nonce):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(echo.encode())
-        else:
-            self.send_response(403)
-            self.end_headers()
+        if mtype == 'image':
+            media_id = root.findtext('MediaId')
+            token    = get_access_token()
+            img_data = download_media(token, media_id)
+            if img_data:
+                url = upload_to_imgbb(img_data)
+                content = (
+                    f'表情处理完成：🔗 点击下载\n{url}\n\n保存出现问题？回复「帮助」获取教程'
+                    if url else '图片上传失败，请稍后重试'
+                )
+            else:
+                content = '图片获取失败，请稍后重试'
 
-    def do_POST(self):
-        length = int(self.headers.get('Content-Length', 0))
-        body   = self.rfile.read(length)
-        try:
-            root  = ET.fromstring(body)
-            to    = root.findtext('ToUserName')
-            frm   = root.findtext('FromUserName')
-            mtype = root.findtext('MsgType')
-
-            if mtype == 'image':
-                media_id = root.findtext('MediaId')
-                token    = get_access_token()
-                img_data = download_media(token, media_id)
-
-                if img_data:
-                    url = upload_to_imgbb(img_data)
-                    if url:
-                        content = (
-                            f'表情处理完成：🔗 点击下载\n{url}\n\n'
-                            '保存出现问题？回复「帮助」获取教程'
-                        )
-                    else:
-                        content = '图片上传失败，请稍后重试'
-                else:
-                    content = '图片获取失败，请稍后重试'
-
-            elif mtype == 'text':
-                text = root.findtext('Content', '').strip()
-                if '帮助' in text or 'help' in text.lower():
-                    content = (
-                        '📖 使用教程\n\n'
-                        '1. 直接发送图片或表情给我\n'
-                        '2. 我会返回一个下载链接\n'
-                        '3. 点击链接，长按图片保存即可\n\n'
-                        '支持：普通图片、表情包、截图等'
-                    )
-                else:
-                    content = '发送图片给我，我来帮你生成下载链接 😊'
-
+        elif mtype == 'text':
+            text = root.findtext('Content', '').strip()
+            if '帮助' in text or 'help' in text.lower():
+                content = (
+                    '📖 使用教程\n\n'
+                    '1. 直接发送图片或表情给我\n'
+                    '2. 我会返回一个下载链接\n'
+                    '3. 点击链接，长按图片保存即可\n\n'
+                    '支持：普通图片、表情包、截图等'
+                )
             else:
                 content = '发送图片给我，我来帮你生成下载链接 😊'
+        else:
+            content = '发送图片给我，我来帮你生成下载链接 😊'
 
-            reply = xml_reply(frm, to, content)
-            self.send_response(200)
-            self.send_header('Content-Type', 'text/xml; charset=utf-8')
-            self.end_headers()
-            self.wfile.write(reply.encode('utf-8'))
-
-        except Exception:
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b'success')
-
-    def log_message(self, *args):
-        pass
+        return Response(xml_reply(frm, to, content), mimetype='text/xml')
+    except Exception:
+        return 'success', 200
